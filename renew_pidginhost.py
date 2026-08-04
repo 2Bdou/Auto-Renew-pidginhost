@@ -390,7 +390,9 @@ def main():
         except Exception as e:
             print(f"[STATE] 写入状态文件失败: {e}")
 
-    # 退出码：成功=0，失败=1
+    # 退出码：成功=0（dry-run 视为成功，仅检查），失败=1
+    if args.dry_run:
+        return 0
     return 0 if renewer.extended else 1
 
 

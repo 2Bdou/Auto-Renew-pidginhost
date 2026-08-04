@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          python -m playwright install chromium-headless-shell --with-deps
+          python -m playwright install chromium --with-deps
 
       - name: Check required secrets
         env:
@@ -52,7 +52,7 @@ jobs:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          python renew_pidginhost.py
+          python renew_pidginhost.py --debug
 
       - name: Upload error screenshot on failure
         if: failure()

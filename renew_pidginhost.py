@@ -243,12 +243,40 @@ class PidginRenewer:
 
     # ---- 点 Extend 30 days ----
     def _extend(self, page):
-        # 先记录当前 Activity 最新一条时间（用于延长后对比）
+        # 1. 先记录当前 Activity（点击前基线，用于延长后对比）
         before = self._fetch_activity(page)
+
+        # 2. 回服务器管理页（确保按钮可见）
+        try:
+            page.goto(self.server_url, timeout=30000)
+            page.wait_for_load_state("domcontentloaded")
+            page.wait_for_timeout(2500)
+        except Exception as e:
+            self.log(f"⚠️ 回到管理页失败: {e}")
+
+        # 3. 找按钮（可能在普通位置，也可能在 Actions 下拉里）
         btn = page.locator("button:has-text('Extend 30 days')").first
         if btn.count() == 0:
+            # 尝试展开 Actions 菜单再找
+            try:
+                actions = page.locator("button:has-text('Actions')").first
+                if actions.count() > 0:
+                    actions.click(timeout=5000)
+                    page.wait_for_timeout(800)
+                    btn = page.locator("button:has-text('Extend 30 days')").first
+            except Exception:
+                pass
+        if btn.count() == 0:
             self.log("⚠️ 未找到 'Extend 30 days' 按钮（可能已延长或页面结构变化）")
+            # 兼容：若服务器仍显示有效（expires in N days），视为无需续期/已续期成功
+            expire_text = page.locator("text=expires in").all_text_contents()
+            if expire_text:
+                self.log(f"ℹ️ 服务器状态: {expire_text[0].strip()} → 无需续期，视为成功")
+                self.extended = True
+                return True
             return False
+
+        # 4. 点按钮
         btn.click()
         self.log("🔄 已点击 'Extend 30 days'，等待处理...")
         page.wait_for_timeout(4000)
@@ -260,7 +288,8 @@ class PidginRenewer:
             pass
         page.wait_for_timeout(2000)
 
-        # 拉取 Activity 对比
+        # 5. 点击后抓 Activity 对比基线
+        page.wait_for_timeout(3000)
         after = self._fetch_activity(page)
         new_lines = [l for l in after if l not in before]
         if new_lines:
@@ -281,8 +310,21 @@ class PidginRenewer:
                 self.activity_lines = after
                 self.extended = True
             else:
-                self.activity_lines = after
-                self.log("⚠️ Activity 中仍未确认到新记录，可能延迟或未成功")
+                # 再兜底：按钮点击后可能已成功但 Activity 延迟，检查页面是否还有按钮
+                try:
+                    page.goto(self.server_url, timeout=30000)
+                    page.wait_for_timeout(2500)
+                    btn2 = page.locator("button:has-text('Extend 30 days')").first
+                    if btn2.count() == 0:
+                        self.log("✅ 按钮已消失（续期成功，Activity 延迟未显示）")
+                        self.extended = True
+                    else:
+                        self.activity_lines = after
+                        self.log("⚠️ Activity 中仍未确认到新记录，可能延迟或未成功")
+                except Exception as e:
+                    self.log(f"⚠️ 兜底检查失败: {e}")
+                    self.activity_lines = after
+                    self.log("⚠️ Activity 中仍未确认到新记录，可能延迟或未成功")
         return self.extended
 
     # ---- 抓取 Activity 记录 ----

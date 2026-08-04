@@ -3,3 +3,4 @@ __pycache__/
 error_screenshot.png
 renew.log
 .env
+.last_renew

@@ -43,6 +43,10 @@ CONFIG = {
     "tg_bot_token": os.environ.get("TG_BOT_TOKEN", "REMOVED_CREDENTIAL").strip(),
     "tg_chat_id": os.environ.get("TG_CHAT_ID", "7592034407"),
     "base_url": "https://www.pidginhost.com",
+    # 续期间隔（天）：免费 VPS 30 天到期，10 天续一次留足余量
+    "renew_interval_days": int(os.environ.get("RENEW_INTERVAL_DAYS", "10")),
+    # 状态文件：记录上次成功续期时间（默认与脚本同目录）
+    "state_file": os.environ.get("STATE_FILE", os.path.join(os.path.dirname(os.path.abspath(__file__)), ".last_renew")),
 }
 
 LOGIN_URL = "https://www.pidginhost.com/panel/account/login"
@@ -324,7 +328,25 @@ def main():
     ap.add_argument("--debug", action="store_true", help="调试模式（打印异常堆栈）")
     ap.add_argument("--headless-off", action="store_true", help="有头模式运行")
     ap.add_argument("--no-tg", action="store_true", help="不发送 TG 报告")
+    ap.add_argument("--force", action="store_true", help="忽略 10 天间隔，强制续期")
     args = ap.parse_args()
+
+    # ---- 10 天间隔控制 ----
+    state_file = CONFIG["state_file"]
+    interval = CONFIG["renew_interval_days"]
+    now = datetime.datetime.now()
+    if not args.force and not args.dry_run:
+        last_ts = None
+        if os.path.exists(state_file):
+            try:
+                last_ts = datetime.datetime.fromisoformat(open(state_file).read().strip())
+            except Exception:
+                pass
+        if last_ts is not None:
+            days_since = (now - last_ts).days
+            if days_since < interval:
+                print(f"[SKIP] 上次续期 {last_ts.strftime('%Y-%m-%d %H:%M')}，距今 {days_since} 天 < {interval} 天，跳过本次执行")
+                return 0
 
     renewer = PidginRenewer(
         headless=not args.headless_off,
@@ -339,6 +361,15 @@ def main():
 
     if not args.no_tg:
         send_tg(report)
+
+    # 成功续期后记录状态时间
+    if renewer.extended and not args.dry_run:
+        try:
+            with open(state_file, "w") as f:
+                f.write(now.isoformat())
+            print(f"[STATE] 已记录续期时间 → {state_file}")
+        except Exception as e:
+            print(f"[STATE] 写入状态文件失败: {e}")
 
     # 退出码：成功=0，失败=1
     return 0 if renewer.extended else 1

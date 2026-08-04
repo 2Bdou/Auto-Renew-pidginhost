@@ -339,7 +339,13 @@ def main():
         last_ts = None
         if os.path.exists(state_file):
             try:
-                last_ts = datetime.datetime.fromisoformat(open(state_file).read().strip())
+                raw = open(state_file).read().strip()
+                # 兼容带时区(offset-aware)的 ISO 时间，统一转 naive
+                if raw.endswith("Z"):
+                    raw = raw[:-1] + "+00:00"
+                last_ts = datetime.datetime.fromisoformat(raw)
+                if last_ts.tzinfo is not None:
+                    last_ts = last_ts.replace(tzinfo=None)
             except Exception:
                 pass
         if last_ts is not None:

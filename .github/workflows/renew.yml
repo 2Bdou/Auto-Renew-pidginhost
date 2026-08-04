@@ -29,10 +29,24 @@ jobs:
           pip install -r requirements.txt
           python -m playwright install chromium-headless-shell --with-deps
 
+      - name: Check required secrets
+        env:
+          PIDGIN_EMAIL: ${{ secrets.PIDGIN_EMAIL }}
+          PIDGIN_PASSWORD: ${{ secrets.PIDGIN_PASSWORD }}
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          if [ -z "$PIDGIN_EMAIL" ] || [ -z "$PIDGIN_PASSWORD" ]; then
+            echo "::error::缺少必需 Secrets: PIDGIN_EMAIL / PIDGIN_PASSWORD"
+            echo "请到仓库 Settings → Secrets and variables → Actions 配置后再运行"
+            echo "（TG_BOT_TOKEN / TG_CHAT_ID 可选，不配则跳过 TG 通知）"
+            exit 1
+          fi
+          echo "✅ Secrets 已配置"
+          [ -n "$TG_BOT_TOKEN" ] && [ -n "$TG_CHAT_ID" ] && echo "✅ TG 通知已配置" || echo "⚠️ TG 通知未配置（将跳过）"
+
       - name: Run PidginHost auto-renew
         env:
-          # 从 GitHub Secrets 读取（仓库 Settings → Secrets and variables → Actions）
-          # 必须配置 PIDGIN_EMAIL / PIDGIN_PASSWORD，否则脚本直接报错
           PIDGIN_EMAIL: ${{ secrets.PIDGIN_EMAIL }}
           PIDGIN_PASSWORD: ${{ secrets.PIDGIN_PASSWORD }}
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}

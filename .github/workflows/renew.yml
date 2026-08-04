@@ -11,6 +11,10 @@ on:
   # 支持在 GitHub Actions 页面手动触发
   workflow_dispatch:
 
+permissions:
+  actions: write
+  contents: write
+
 jobs:
   renew:
     runs-on: ubuntu-latest
@@ -61,3 +65,32 @@ jobs:
           name: error-screenshot
           path: error_screenshot.png
           if-no-files-found: ignore
+
+      # 清理旧 run jobs：只保留最新 1 条运行记录
+      - name: clear old run jobs
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          runs=$(gh run list --workflow="${{ github.workflow }}" --limit=100 --json databaseId --jq '.[].databaseId')
+          count=0
+          for run_id in $runs; do
+            count=$((count + 1))
+            if [ $count -gt 1 ]; then
+              echo "deleted: $run_id"
+              gh run delete $run_id || true
+            fi
+          done
+
+      # 每次运行把时间写入 time.txt 并推送（[skip ci] 防止触发新 workflow 造成死循环）
+      - name: Commit time.txt to repo
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          date '+%Y-%m-%d %H:%M:%S' > time.txt
+
+          git add time.txt
+          git commit -m "Update time.txt [skip ci]" || exit 0
+          git push origin HEAD:${{ github.ref_name }}

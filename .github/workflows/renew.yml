@@ -1,20 +1,20 @@
 name: Auto Renew PidginHost VPS
 
 on:
+  # 提交/推送代码到 main 分支时自动触发（用于测试）
+  push:
+    branches: [main]
+  # 每 10 天运行一次（UTC 00:00 = 北京时间 08:00）
+  # 注意：GitHub 的 schedule cron 用 UTC 时间；*/10 表示每月的 1/11/21/31 号
   schedule:
-    # 每 10 天运行一次（UTC 00:00 = 北京时间 08:00）
-    # 注意：GitHub 的 schedule cron 用 UTC 时间；*/10 表示每月的 1/11/21/31 号
     - cron: '0 0 */10 * *'
-  # 支持在 GitHub Actions 页面手动触发（用于测试）
+  # 支持在 GitHub Actions 页面手动触发
   workflow_dispatch:
 
 jobs:
   renew:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: pidgin_renew
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -27,9 +27,6 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-
-      - name: Install Playwright browser
-        run: |
           python -m playwright install chromium-headless-shell --with-deps
 
       - name: Run PidginHost auto-renew
@@ -48,5 +45,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: error-screenshot
-          path: pidgin_renew/error_screenshot.png
+          path: error_screenshot.png
           if-no-files-found: ignore

@@ -22,21 +22,27 @@ PidginHost 免费 Cloud Server 有效期 30 天，到期前可无限次点 "Exte
 
 ## 配置
 
-脚本内 `CONFIG` 字典已有默认值；也可以通过环境变量覆盖（更推荐，避免硬编码）：
+**脚本内不保存任何敏感信息。** 所有凭据一律从环境变量读取；缺少必需变量会直接报错退出。
 
 ```bash
-export PIDGIN_EMAIL="REMOVED_CREDENTIAL"
+# 方式一：环境变量
+export PIDGIN_EMAIL="your-email@example.com"
 export PIDGIN_PASSWORD="your-password"
 export TG_BOT_TOKEN="123456:ABC..."
 export TG_CHAT_ID="123456789"
+
+# 方式二：.env 文件（已 gitignore）
+cp .env.example .env   # 填入真实值
+set -a && source .env && set +a
 ```
 
-| 环境变量 | 说明 |
-|---|---|
-| `PIDGIN_EMAIL` | PidginHost 登录邮箱 |
-| `PIDGIN_PASSWORD` | PidginHost 登录密码 |
-| `TG_BOT_TOKEN` | Telegram bot token（发报告用） |
-| `TG_CHAT_ID` | Telegram 接收报告的 chat id |
+| 环境变量 | 必需 | 说明 |
+|---|---|---|
+| `PIDGIN_EMAIL` | ✅ | PidginHost 登录邮箱 |
+| `PIDGIN_PASSWORD` | ✅ | PidginHost 登录密码 |
+| `TG_BOT_TOKEN` | ❌ | Telegram bot token（发报告用，不填则跳过） |
+| `TG_CHAT_ID` | ❌ | Telegram 接收报告的 chat id（不填则跳过） |
+| `RENEW_INTERVAL_DAYS` | ❌ | 续期间隔天数（默认 10） |
 
 ## 用法
 

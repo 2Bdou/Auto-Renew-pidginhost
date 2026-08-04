@@ -17,8 +17,8 @@ PidginHost 免费 VPS 自动续期脚本
   python3 renew_pidginhost.py --debug        # 保留浏览器可见 + 打印详细日志
   python3 renew_pidginhost.py --headless-off # 有头模式（便于排障）
 
-配置：优先读环境变量（PIDGIN_EMAIL/PIDGIN_PASSWORD/TG_BOT_TOKEN/TG_CHAT_ID），
-      没有则回退到脚本内 CONFIG 字典。
+配置：所有凭据一律从环境变量读取（PIDGIN_EMAIL/PIDGIN_PASSWORD/TG_BOT_TOKEN/TG_CHAT_ID），
+      脚本内不保存任何敏感信息。未设置必需环境变量时直接报错退出。
 """
 
 import argparse
@@ -34,37 +34,50 @@ import urllib.parse
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 # ---------------------------------------------------------------------------
-# 配置（可被环境变量覆盖）
+# 配置（只读环境变量，不写死任何敏感信息）
 # ---------------------------------------------------------------------------
-CONFIG = {
-    "pidgin_email": "REMOVED_CREDENTIAL",
-    "pidgin_password": "REMOVED_CREDENTIAL",
-    # Telegram 通知（bot token 来自 agent.json，chat_id 是 TG 会话 user_id）
-    "tg_bot_token": os.environ.get("TG_BOT_TOKEN", "REMOVED_CREDENTIAL").strip(),
-    "tg_chat_id": os.environ.get("TG_CHAT_ID", "7592034407"),
-    "base_url": "https://www.pidginhost.com",
-    # 续期间隔（天）：免费 VPS 30 天到期，10 天续一次留足余量
-    "renew_interval_days": int(os.environ.get("RENEW_INTERVAL_DAYS", "10")),
-    # 状态文件：记录上次成功续期时间（默认与脚本同目录）
-    "state_file": os.environ.get("STATE_FILE", os.path.join(os.path.dirname(os.path.abspath(__file__)), ".last_renew")),
+BASE_URL = "https://www.pidginhost.com"
+LOGIN_URL = BASE_URL + "/panel/account/login"
+
+# 必需的环境变量
+REQUIRED_ENV = {
+    "PIDGIN_EMAIL": "PidginHost 登录邮箱",
+    "PIDGIN_PASSWORD": "PidginHost 登录密码",
+}
+# 可选的环境变量
+OPTIONAL_ENV = {
+    "TG_BOT_TOKEN": "Telegram bot token（发报告用）",
+    "TG_CHAT_ID": "Telegram 接收报告的 chat id",
+    "RENEW_INTERVAL_DAYS": "续期间隔天数（默认 10）",
+    "STATE_FILE": "状态文件路径（默认 .last_renew）",
 }
 
-LOGIN_URL = "https://www.pidginhost.com/panel/account/login"
+
+def get_env(name: str) -> str:
+    """读取环境变量，缺失则报错（TG 相关允许为空则跳过通知）。"""
+    val = os.environ.get(name, "").strip()
+    if not val:
+        if name in REQUIRED_ENV:
+            raise RuntimeError(f"缺少必需环境变量 {name}（{REQUIRED_ENV[name]}）")
+        return ""
+    return val
 
 
-def env_or(key, default):
-    return os.environ.get(key, default)
+def get_conf() -> dict:
+    """统一读取全部配置，只来自环境变量。"""
+    return {
+        "pidgin_email": get_env("PIDGIN_EMAIL"),
+        "pidgin_password": get_env("PIDGIN_PASSWORD"),
+        "tg_bot_token": get_env("TG_BOT_TOKEN"),
+        "tg_chat_id": get_env("TG_CHAT_ID"),
+        "base_url": BASE_URL,
+        "renew_interval_days": int(os.environ.get("RENEW_INTERVAL_DAYS", "10")),
+        # 状态文件：记录上次成功续期时间（默认与脚本同目录）
+        "state_file": os.environ.get("STATE_FILE", os.path.join(os.path.dirname(os.path.abspath(__file__)), ".last_renew")),
+    }
 
 
-def get_conf(key):
-    # key 为 "email" -> 环境变量 PIDGIN_EMAIL，或 CONFIG 的 pidgin_email
-    env_key = "PIDGIN_" + key.upper()
-    if env_key in os.environ:
-        return os.environ[env_key]
-    # 兼容：CONFIG 里存的是 pidgin_email / pidgin_password
-    if key in ("email", "password"):
-        return CONFIG.get("pidgin_" + key)
-    return CONFIG.get(key)
+CONFIG = get_conf()
 
 
 # ---------------------------------------------------------------------------
@@ -102,8 +115,8 @@ class PidginRenewer:
         self.headless = headless
         self.dry_run = dry_run
         self.debug = debug
-        self.email = get_conf("email")
-        self.password = get_conf("password")
+        self.email = CONFIG["pidgin_email"]
+        self.password = CONFIG["pidgin_password"]
         self.results = []          # (时间, 事件)
         self.extended = False
         self.activity_lines = []

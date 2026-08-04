@@ -35,7 +35,7 @@ jobs:
       - name: Run PidginHost auto-renew
         env:
           # 从 GitHub Secrets 读取（仓库 Settings → Secrets and variables → Actions）
-          # 若未配置则回退到脚本内置默认值
+          # 必须配置 PIDGIN_EMAIL / PIDGIN_PASSWORD，否则脚本直接报错
           PIDGIN_EMAIL: ${{ secrets.PIDGIN_EMAIL }}
           PIDGIN_PASSWORD: ${{ secrets.PIDGIN_PASSWORD }}
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}

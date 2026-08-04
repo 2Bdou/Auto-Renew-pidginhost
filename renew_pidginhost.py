@@ -39,6 +39,14 @@ from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 BASE_URL = "https://www.pidginhost.com"
 LOGIN_URL = BASE_URL + "/panel/account/login"
 
+# 北京时间（UTC+8）
+TZ_CN = datetime.timezone(datetime.timedelta(hours=8))
+
+
+def now_cn() -> datetime.datetime:
+    """当前时间（北京时间，带 tz）。"""
+    return datetime.datetime.now(TZ_CN)
+
 # 必需的环境变量
 REQUIRED_ENV = {
     "PIDGIN_EMAIL": "PidginHost 登录邮箱",
@@ -125,7 +133,7 @@ class PidginRenewer:
         self.server_id = None
 
     def log(self, msg):
-        line = f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}"
+        line = f"[{now_cn().strftime('%Y-%m-%d %H:%M:%S')}] {msg}"
         print(line)
         self.results.append(line)
 
@@ -354,8 +362,10 @@ class PidginRenewer:
 
     # ---- 报告 ----
     def _build_report(self):
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # 执行时间用北京时间
+        now = now_cn().strftime("%Y-%m-%d %H:%M:%S")
         status = "✅ 成功" if self.extended else ("🔍 仅检查(DRY-RUN)" if self.dry_run else "❌ 失败/未延长")
+        # 精简版：只发核心状态，Activity/执行日志只用于本地判断，不进 TG
         lines = [
             f"🤖 PidginHost 免费 VPS 自动续期报告",
             f"🕐 执行时间: {now}",
@@ -363,16 +373,12 @@ class PidginRenewer:
             f"🖥️ 服务器: {self.server_name or '未知'}",
             f"📊 状态: {status}",
         ]
-        if self.activity_lines:
-            lines.append(f"📋 Activity 最新记录:")
-            for l in self.activity_lines[-3:]:
-                lines.append(f"   {l}")
-        elif self.extended:
-            lines.append("⚠️ Activity 中未抓到续期记录，可能延迟")
-        lines.append("")
-        lines.append("📝 执行日志:")
-        for r in self.results[-15:]:
-            lines.append(f"  {r}")
+        # 仅失败时附一句原因（成功/检查不需要）
+        if not self.extended and not self.dry_run:
+            if self.activity_lines:
+                lines.append(f"⚠️ 最近续期记录: {self.activity_lines[0]}")
+            else:
+                lines.append("⚠️ 未能确认续期，请查看完整日志")
         report = "\n".join(lines)
         return report
 
@@ -389,7 +395,7 @@ def main():
     # ---- 10 天间隔控制 ----
     state_file = CONFIG["state_file"]
     interval = CONFIG["renew_interval_days"]
-    now = datetime.datetime.now()
+    now = now_cn().replace(tzinfo=None)  # 北京时间（naive），与 .last_renew 保持一致
     if not args.force and not args.dry_run:
         last_ts = None
         if os.path.exists(state_file):

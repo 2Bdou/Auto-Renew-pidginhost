@@ -17,19 +17,17 @@ PidginHost 免费 VPS 自动续期脚本
   python3 renew_pidginhost.py --debug        # 保留浏览器可见 + 打印详细日志
   python3 renew_pidginhost.py --headless-off # 有头模式（便于排障）
 
-配置：所有凭据一律从环境变量读取（PIDGIN_EMAIL/PIDGIN_PASSWORD/TG_BOT_TOKEN/TG_CHAT_ID），
+配置：所有凭据一律从环境变量读取（PIDGIN_EMAIL/PIDGIN_PASSWORD），
+      通知复用 notify.py 模块（TG_BOT_TOKEN/TG_CHAT_ID/SMTP_CONFIG 双通道，未配置自动跳过）。
       脚本内不保存任何敏感信息。未设置必需环境变量时直接报错退出。
 """
 
 import argparse
 import datetime
-import json
 import os
 import re
 import sys
 import time
-import urllib.request
-import urllib.parse
 
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
@@ -58,6 +56,7 @@ OPTIONAL_ENV = {
     "TG_CHAT_ID": "Telegram 接收报告的 chat id",
     "RENEW_INTERVAL_DAYS": "续期间隔天数（默认 10）",
     "STATE_FILE": "状态文件路径（默认 .last_renew）",
+    "SMTP_CONFIG": "SMTP 邮件通知配置（JSON，可选，与 notify.py 对齐）",
 }
 
 
@@ -86,33 +85,6 @@ def get_conf() -> dict:
 
 
 CONFIG = get_conf()
-
-
-# ---------------------------------------------------------------------------
-# Telegram 通知
-# ---------------------------------------------------------------------------
-def send_tg(text: str) -> bool:
-    token = CONFIG["tg_bot_token"]
-    chat_id = CONFIG["tg_chat_id"]
-    if not token or not chat_id:
-        print("[TG] 未配置 bot_token/chat_id，跳过发送")
-        return False
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    data = urllib.parse.urlencode({
-        "chat_id": chat_id,
-        "text": text,
-        "disable_web_page_preview": "true",
-    }).encode()
-    req = urllib.request.Request(url, data=data, method="POST")
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            body = resp.read().decode()
-            ok = json.loads(body).get("ok", False)
-            print(f"[TG] 发送{'成功' if ok else '失败'}: {text[:80]}...")
-            return ok
-    except Exception as e:
-        print(f"[TG] 发送异常: {e}")
-        return False
 
 
 # ---------------------------------------------------------------------------
@@ -388,7 +360,7 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="只登录检查，不点延长")
     ap.add_argument("--debug", action="store_true", help="调试模式（打印异常堆栈）")
     ap.add_argument("--headless-off", action="store_true", help="有头模式运行")
-    ap.add_argument("--no-tg", action="store_true", help="不发送 TG 报告")
+    ap.add_argument("--no-tg", action="store_true", help="不发送通知（TG/SMTP）")
     ap.add_argument("--force", action="store_true", help="忽略 10 天间隔，强制续期")
     args = ap.parse_args()
 
@@ -427,7 +399,13 @@ def main():
     print("=" * 60)
 
     if not args.no_tg:
-        send_tg(report)
+        try:
+            from notify import send_notification
+            send_notification(report, title="PidginHost 续期报告")
+        except ImportError:
+            print("[notify] 未找到 notify.py，跳过通知")
+        except Exception as e:
+            print(f"[notify] 通知发送异常: {e}")
 
     # 成功续期后记录状态时间
     if renewer.extended and not args.dry_run:

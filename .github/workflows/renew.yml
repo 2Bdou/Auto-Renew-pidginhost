@@ -39,6 +39,7 @@ jobs:
           PIDGIN_PASSWORD: ${{ secrets.PIDGIN_PASSWORD }}
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          SMTP_CONFIG: ${{ secrets.SMTP_CONFIG }}
         run: |
           if [ -z "$PIDGIN_EMAIL" ] || [ -z "$PIDGIN_PASSWORD" ]; then
             echo "::error::缺少必需 Secrets: PIDGIN_EMAIL / PIDGIN_PASSWORD"
@@ -48,6 +49,7 @@ jobs:
           fi
           echo "✅ Secrets 已配置"
           [ -n "$TG_BOT_TOKEN" ] && [ -n "$TG_CHAT_ID" ] && echo "✅ TG 通知已配置" || echo "⚠️ TG 通知未配置（将跳过）"
+          [ -n "$SMTP_CONFIG" ] && echo "✅ SMTP 通知已配置" || echo "⚠️ SMTP 通知未配置（将跳过）"
 
       - name: Run PidginHost auto-renew
         env:
@@ -55,6 +57,7 @@ jobs:
           PIDGIN_PASSWORD: ${{ secrets.PIDGIN_PASSWORD }}
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          SMTP_CONFIG: ${{ secrets.SMTP_CONFIG }}
         run: |
           python renew_pidginhost.py --debug
 

@@ -30,10 +30,13 @@
 | `PIDGIN_PASSWORD` | ✅ | 你的 PidginHost 登录密码 | 同上 |
 | `TG_BOT_TOKEN` | ❌ | Telegram bot 的 token | 找 [@BotFather](https://t.me/BotFather) → `/newbot` 创建机器人后获得 |
 | `TG_CHAT_ID` | ❌ | 你的 Telegram 用户 ID | 找 [@userinfobot](https://t.me/userinfobot) 发任意消息即可看到 |
+| `SMTP_CONFIG` | ❌ | SMTP 邮件通知（JSON，可选） | 与 dnshe-renewal 同格式：`{"host":"smtp.qq.com","port":465,"user":"you@qq.com","pass":"授权码","from":"you@qq.com","to":"recv@example.com","ssl":true}` |
 
 > **注意**：Secret 名称必须**完全一致**（全大写、下划线），值填完就看不到了，输错只能删掉重加。
 >
 > `TG_BOT_TOKEN` / `TG_CHAT_ID` 不填也可以跑，只是收不到 Telegram 通知。
+>
+> 通知走通用 `notify.py` 模块（TG + SMTP 双通道，可并存）：配了 `SMTP_CONFIG` 就同时发邮件，都未配置则自动跳过不报错。
 
 ### 第 3 步：运行一次试试
 
@@ -54,7 +57,7 @@
 3. 找到免费服务器 → 进入管理页
 4. 点 **"Extend 30 days"** 续期
 5. 抓取 Activity 确认出现新的 `Free VM renewal extended for 30 days` 记录
-6. 发送 Telegram 报告（执行时间、账号、服务器、状态）
+6. 发送通知（执行时间、账号、服务器、状态；TG + SMTP 双通道，未配置自动跳过）
 
 ### 定时与清理
 
@@ -112,6 +115,7 @@ python3 renew_pidginhost.py --debug      # 调试模式
 | `TG_BOT_TOKEN` | ❌ | Telegram bot token（不填则跳过通知） |
 | `TG_CHAT_ID` | ❌ | Telegram 接收报告的 chat id（不填则跳过通知） |
 | `RENEW_INTERVAL_DAYS` | ❌ | 续期间隔天数（默认 10） |
+| `SMTP_CONFIG` | ❌ | SMTP 邮件通知 JSON（与 dnshe-renewal 对齐，可选） |
 
 > 🔒 **安全**：脚本内**不保存任何敏感信息**，凭据一律从环境变量 / GitHub Secrets 读取；缺少必需变量时直接报错退出。
 
@@ -122,6 +126,7 @@ python3 renew_pidginhost.py --debug      # 调试模式
 ```
 .
 ├── renew_pidginhost.py        # 主脚本
+├── notify.py                  # 通用通知模块（TG + SMTP 双通道）
 ├── requirements.txt           # Python 依赖
 ├── .env.example               # 本地环境变量模板（不含真实值）
 ├── time.txt                   # 每次运行自动更新时间戳
